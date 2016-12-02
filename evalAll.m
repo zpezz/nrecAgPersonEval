@@ -40,6 +40,7 @@ p.addParameter('indexFileOut', []);
 p.addParameter('gtCache', []);
 p.addParameter('evalSet', 'test');
 p.addParameter('plotRocs', 0);
+p.addParameter('exps', []);
 p.parse(varargin{:});
 res = p.Results;
 
@@ -47,6 +48,7 @@ indexFileOut = res.indexFileOut;
 gtCache = res.gtCache;
 evalSet = res.evalSet;
 plotRocs = res.plotRocs;
+exps = res.exps;
 
 nAlgs = numel(detectionFiles);
 if isempty(algNames)
@@ -60,22 +62,24 @@ gtDir = fullfile(gtDirBase, evalSet, 'collected', 'AnnotationsPositiveNegative')
 
 baselineFilters = {@filterData_occPartialAndUnoccluded};
 
-exps = {
-  'Baseline',     baselineFilters
-  'Env=Orange',   {baselineFilters{:}, @filterData_envOrangeOnly}
-  'Env=Apple',    {baselineFilters{:}, @filterData_envAppleOnly}
-  'All',          {@filterData_occIncludeAll}
-  'Occ=Clear',    {@filterData_occUnoccludedOnly} 
-  'Occ=Partial',  {@filterData_occPartialOnly} 
-  'Occ=Heavy',    {@filterData_occHeavyOnly} 
-  'Scale=Large',  {baselineFilters{:}, @filterData_scaleLargeOnly}
-  'Scale=Medium', {baselineFilters{:}, @filterData_scaleMediumOnly}
-  'Scale=Small',  {baselineFilters{:}, @filterData_scaleSmallOnly}
-  'Pose=Typical', {baselineFilters{:}, @filterData_unusualPosesOut} 
-  'Pose=Unusual'  {baselineFilters{:}, @filterData_unusualPosesOnly} 
-  'Motion=Static',{baselineFilters{:}, @filterData_movingPeopleOut} 
-  'Motion=Moving',{baselineFilters{:}, @filterData_movingPeopleOnly} 
-  };
+if isempty(exps)
+  exps = {
+    'Baseline',     baselineFilters
+    'Env=Orange',   {baselineFilters{:}, @filterData_envOrangeOnly}
+    'Env=Apple',    {baselineFilters{:}, @filterData_envAppleOnly}
+    'All',          {@filterData_occIncludeAll}
+    'Occ=Clear',    {@filterData_occUnoccludedOnly}
+    'Occ=Partial',  {@filterData_occPartialOnly}
+    'Occ=Heavy',    {@filterData_occHeavyOnly}
+    'Scale=Large',  {baselineFilters{:}, @filterData_scaleLargeOnly}
+    'Scale=Medium', {baselineFilters{:}, @filterData_scaleMediumOnly}
+    'Scale=Small',  {baselineFilters{:}, @filterData_scaleSmallOnly}
+    'Pose=Typical', {baselineFilters{:}, @filterData_unusualPosesOut}
+    'Pose=Unusual'  {baselineFilters{:}, @filterData_unusualPosesOnly}
+    'Motion=Static',{baselineFilters{:}, @filterData_movingPeopleOut}
+    'Motion=Moving',{baselineFilters{:}, @filterData_movingPeopleOnly}
+    };
+end
 nExps = size(exps, 1);
 
 % -- Load ground truth data
@@ -158,8 +162,11 @@ if plotRocs
     hold on
     for algNum = 1:nAlgs
       curRes = results(expNum, algNum);
-      plotRoc([curRes.fp curRes.tp],'logx',1,'logy',1,'xLbl','fppi',...
-        'lims',lims,'color',colors(algNum),'smooth',1,'fpTarget',refV);
+      plotRoc([curRes.fp curRes.tp], 'logx', 1, 'logy', 0,...
+        'xLbl', 'False Positives per Image',...
+        'yLbl', 'Miss Rate',...
+        'lims', lims, 'color', colors(algNum), 'smooth', 1, ...
+        'fpTarget', ref);
     end
     % Remove exta plot lines
     plotH = findobj(gcf,'type','line');
