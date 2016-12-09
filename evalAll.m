@@ -15,8 +15,12 @@ function [results, gtMats, dtMats, gtIndex, exps] = evalAll(detectionFiles, algN
 %  gtCache          Path to location to write ground truth data to, for
 %                   loading (faster operation) on subsequent calls. Ignored
 %                   if empty <[]>
-%  evalSet          Database subset to evaluate on. <'test'>
+%  evalSet          Database subset to evaluate on. <'val'>
 %  plotRocs         Whether to plot ROC curves <0>
+%  apRef            Reference FP values at which to sample TP rates for
+%                   computing mAP <10^(-3:.25:-1)>
+%  rocIoU           Intersection over Union (overlap) threshold for use in
+%                   ROC plots. <0.5>
 %
 % Outputs:
 %  -- Sizes below refer to 
@@ -27,7 +31,7 @@ function [results, gtMats, dtMats, gtIndex, exps] = evalAll(detectionFiles, algN
 %    .fp            False positive rate per score (ROC x-vals)
 %    .tp            True positive rate per score (ROC y-vals)
 %    .score         Detection scores (threshold) for each data point above
-%    .ref           TP rate at reference FP values 10.^(-2:.25:0), for
+%    .ref           TP rate at reference FP values given by apRef, for
 %                   computing mean accuracy
 %  gtMats           Cell array of loaded ground truth data (size nExp)
 %  dtMats           Cell array of loaded detections (size nAlgs)
@@ -38,9 +42,11 @@ function [results, gtMats, dtMats, gtIndex, exps] = evalAll(detectionFiles, algN
 p = inputParser;
 p.addParameter('indexFileOut', []);
 p.addParameter('gtCache', []);
-p.addParameter('evalSet', 'test');
+p.addParameter('evalSet', 'val');
 p.addParameter('plotRocs', 0);
 p.addParameter('exps', []);
+p.addParameter('apRef', [10.^(-3:.25:-1)]);
+p.addParameter('rocIoU', 0.5);
 p.parse(varargin{:});
 res = p.Results;
 
@@ -49,6 +55,8 @@ gtCache = res.gtCache;
 evalSet = res.evalSet;
 plotRocs = res.plotRocs;
 exps = res.exps;
+apRef = res.apRef;
+rocIoU = res.rocIoU;
 
 nAlgs = numel(detectionFiles);
 if isempty(algNames)
@@ -132,20 +140,19 @@ for algNum = 1:nAlgs
 end
 
 % -- Evaluate detections against all experiments
-ref = 10.^(-2:.25:0);
 mul = 0; % whether to allow multiple matches to each gt
 thrAP = [0.3 0.4 0.5 0.6 0.7]; % Overlap threshold
 for expNum = 1:nExps
   for algNum = 1:nAlgs
-    refV = zeros(numel(thrAP), numel(ref));
+    refV = zeros(numel(thrAP), numel(apRef));
+    [gt,dt] = bbGt('evalRes', gtMats{expNum}, dtMats{algNum}, rocIoU, mul); % Apply ignore flags
+    [res.fp, res.tp, res.score] = bbGt('compRoc',gt,dt,1,apRef);
+    res.mAP = []; res.ref = []; % Placeholders
+    results(expNum, algNum) = res;
     for thrIx = 1:numel(thrAP)
       curThr = thrAP(thrIx);
       [gt,dt] = bbGt('evalRes', gtMats{expNum}, dtMats{algNum}, curThr, mul); % Apply ignore flags
-      [res.fp, res.tp, res.score, refV(thrIx,:)] = bbGt('compRoc',gt,dt,1,ref);
-      if curThr == 0.5
-        res.mAP = []; res.ref = []; % Placeholders
-        results(expNum, algNum) = res;
-      end
+      [~, ~, ~, refV(thrIx,:)] = bbGt('compRoc',gt,dt,1,apRef);
     end
     results(expNum, algNum).ref = refV;
     results(expNum, algNum).mAP = mean(mean(refV));
@@ -166,7 +173,7 @@ if plotRocs
         'xLbl', 'False Positives per Image',...
         'yLbl', 'Miss Rate',...
         'lims', lims, 'color', colors(algNum), 'smooth', 1, ...
-        'fpTarget', ref);
+        'fpTarget', apRef);
     end
     % Remove exta plot lines
     plotH = findobj(gcf,'type','line');
