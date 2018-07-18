@@ -1,7 +1,7 @@
 function pLoad = filterData_distFarOnly(pLoad)
 % pLoad = filterData_distFarOnly(pLoad)
 %
-% Setting to evaluate on logs marked "close" only, setting all other data to ignored.
+% Setting to evaluate on logs marked "Far" only, setting all other data to ignored.
 
 pLoad = initpLoad(pLoad);
 
